@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum BookCondition {
+  LIKE_NEW   // 接近全新
+  VERY_GOOD  // 轻微使用痕迹
+  GOOD       // 明显使用痕迹但不影响阅读
+  ACCEPTABLE // 有较重磨损/污渍等
+}
+
+enum TransactionStatus {
+  INITIATED   // 买家发起意向
+  CONTACTING  // 双方围绕书况/价格沟通中
+  PENDING_PAYMENT // 已确认成交，待支付
+  PAID        // 已支付，待交付/线下交接
+  COMPLETED   // 交易完成
+  CANCELLED   // 交易取消（任何一方或超时）
+}
+
+enum ReviewTargetType {
+  USER
+  BOOK
+  TRANSACTION
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  email      String  @unique
+  username   String  @unique
+  displayName String
+  bio        String?
+  avatarUrl  String?
+  location   String?
+
+  /** JSON 字符串，存储轻量偏好/标签，如“气质/主题”关键词 */
+  preferences String?
+
+  isActive Boolean @default(true)
+
+  // 关系
+  books              Book[]        // 作为卖家发布的书
+  buyerTransactions  Transaction[] @relation("buyerTransactions")
+  sellerTransactions Transaction[] @relation("sellerTransactions")
+
+  writtenReviews  Review[] @relation("authorReviews")
+  receivedReviews Review[] @relation("targetUserReviews")
+}
+
+model Book {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sellerId Int
+  seller   User @relation(fields: [sellerId], references: [id])
+
+  title   String
+  author  String
+  isbn    String?
+
+  /** 平台展示用简介，可以是书籍官方介绍或卖家自写摘要 */
+  description String?
+
+  /** 强调“这本书对我意味着什么”的故事或阅读感受 */
+  story String?
+
+  condition    BookCondition
+  edition      String? // 版本信息
+  print        String? // 印次
+  hasHighlight Boolean @default(false) // 是否有划线
+  hasNotes     Boolean @default(false) // 是否有批注
+
+  /** 至少一张阅读痕迹图片；此处存主图 URL，更多图片可扩展到单独表 */
+  coverImageUrl         String?
+  readingTraceImageUrl  String?
+
+  /** 价格以分为单位，便于以后扩展多币种与精确计算 */
+  priceInCents Int
+  currency     String @default("CNY")
+
+  /** 以逗号分隔的“气质/主题”标签，后续可拆出独立 Tag 表 */
+  themeTags String?
+
+  isAvailable Boolean @default(true)
+
+  transactions Transaction[]
+  reviews      Review[]
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  initiatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookId Int
+  book   Book @relation(fields: [bookId], references: [id])
+
+  buyerId Int
+  buyer   User @relation("buyerTransactions", fields: [buyerId], references: [id])
+
+  sellerId Int
+  seller   User @relation("sellerTransactions", fields: [sellerId], references: [id])
+
+  status TransactionStatus @default(INITIATED)
+
+  paidAt       DateTime?
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  /** 最近一次沟通时间，用于支持“有过交流的交易”统计 */
+  lastMessageAt DateTime?
+
+  reviews Review[]
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorId Int
+  author   User @relation("authorReviews", fields: [authorId], references: [id])
+
+  targetUserId Int?
+  targetUser   User? @relation("targetUserReviews", fields: [targetUserId], references: [id])
+
+  bookId Int?
+  book   Book? @relation(fields: [bookId], references: [id])
+
+  transactionId Int?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  targetType ReviewTargetType
+
+  /** 轻量评分，1-5 分；也可以只用“是否推荐”，评分为可选 */
+  rating Int @default(5)
+
+  content String
+}
+

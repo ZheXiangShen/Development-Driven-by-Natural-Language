@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id
+  name         String
+  avatar       String
+  bio          String
+  identityTags Json
+  booksRead    Int
+  highlights   Int
+  followers    Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stories Story[]
+  threads MessageThread[]
+}
+
+model Book {
+  id         String   @id
+  title      String
+  author     String
+  cover      String
+  status     String
+  rating     Int?
+  highlights Int
+  notes      Int
+  moodTags   Json
+  themeTags  Json
+  progress   Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  stories Story[]
+  traces  ReadingTrace[]
+}
+
+model Story {
+  id             String   @id
+  userId         String
+  bookId         String
+  type           String
+  content        String
+  quote          String?
+  page           Int?
+  likes          Int
+  comments       Int
+  bookmarks      Int
+  createdAtLabel String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  book Book @relation(fields: [bookId], references: [id])
+
+  @@index([createdAt])
+  @@index([type])
+}
+
+model ReadingTrace {
+  id             String   @id
+  type           String
+  content        String
+  page           Int
+  note           String?
+  mood           String?
+  createdAtLabel String
+  createdAt      DateTime @default(now())
+  bookId         String?
+
+  book Book? @relation(fields: [bookId], references: [id])
+}
+
+model MessageThread {
+  id          String   @id
+  userId      String   @unique
+  lastMessage String
+  timeLabel   String
+  unread      Int
+  sharedBook  String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  messages ChatMessage[]
+
+  @@index([updatedAt])
+}
+
+model ChatMessage {
+  id        String   @id
+  threadId  String
+  sender    String
+  content   String
+  timeLabel String
+  type      String?
+  bookTitle String?
+  createdAt DateTime @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id])
+
+  @@index([threadId, createdAt])
+}
+
+model PublishItem {
+  id            String   @id
+  publishType   String
+  bookTitle     String?
+  bookAuthor    String?
+  readingStatus String?
+  highlightText String?
+  noteText      String?
+  pageNum       String?
+  selectedMoods Json
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
